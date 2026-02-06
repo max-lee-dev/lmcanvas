@@ -27,8 +27,28 @@ const LMCanvasInner = ({ focusNodeId, fitView }: Pick<LMCanvasProps, "focusNodeI
   const onNodesChange = useCanvasStore((state) => state.onNodesChange);
   const onEdgesChange = useCanvasStore((state) => state.onEdgesChange);
   const getNode = useCanvasStore((state) => state.getNode);
+  const camera = useCanvasStore((state) => state.camera);
+  const setCamera = useCanvasStore((state) => state.setCamera);
+  const setActiveNodeId = useCanvasStore((state) => state.setActiveNodeId);
 
   const reactFlowRef = useRef<ReactFlowInstance | null>(null);
+
+  useEffect(() => {
+    if (!camera || !reactFlowRef.current) return;
+
+    const current = reactFlowRef.current.getViewport();
+    const isSame =
+      Math.abs(current.x - camera.x) < 0.5 &&
+      Math.abs(current.y - camera.y) < 0.5 &&
+      Math.abs(current.zoom - camera.zoom) < 0.001;
+
+    if (isSame) return;
+
+    reactFlowRef.current.setViewport(
+      { x: camera.x, y: camera.y, zoom: camera.zoom },
+      { duration: 0 },
+    );
+  }, [camera]);
 
   useEffect(() => {
     if (!focusNodeId) return;
@@ -56,6 +76,16 @@ const LMCanvasInner = ({ focusNodeId, fitView }: Pick<LMCanvasProps, "focusNodeI
       fitView={fitView}
       onInit={(instance) => {
         reactFlowRef.current = instance;
+      }}
+      onMoveEnd={(_, viewport) => {
+        setCamera({
+          x: viewport.x,
+          y: viewport.y,
+          zoom: viewport.zoom,
+        });
+      }}
+      onNodeClick={(_, node) => {
+        setActiveNodeId(node.id);
       }}
     >
       <Background variant={BackgroundVariant.Dots} gap={24} size={1} />

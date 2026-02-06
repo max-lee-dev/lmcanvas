@@ -1,5 +1,5 @@
 import { createContext, useContext } from "react";
-import { useStore } from "zustand";
+import { useStoreWithEqualityFn } from "zustand/traditional";
 import type { CanvasState, CanvasStore } from "@/store/canvasStore";
 
 const CanvasStoreContext = createContext<CanvasStore | null>(null);
@@ -14,7 +14,7 @@ export const useCanvasStore = <T,>(
   if (!store) {
     throw new Error("useCanvasStore must be used within a CanvasStoreProvider");
   }
-  return useStore(store, selector, equalityFn);
+  return useStoreWithEqualityFn(store, selector, equalityFn);
 };
 
 export const useCanvasStoreApi = (): CanvasStore => {

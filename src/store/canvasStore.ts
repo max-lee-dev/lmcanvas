@@ -10,6 +10,7 @@ import {
 } from "reactflow";
 import type { CanvasNodeData } from "@/types/node";
 import type { Message } from "@/types/message";
+import type { CanvasCamera, CanvasViewSnapshot } from "@/persistence/types";
 import {
   DEFAULT_NODE_HEIGHT,
   DEFAULT_NODE_WIDTH,
@@ -22,9 +23,13 @@ import {
 export type CanvasState = {
   nodesById: Record<string, Node<CanvasNodeData>>;
   edges: Edge[];
+  activeNodeId: string | null;
+  camera: CanvasCamera | null;
   getNode: (id: string) => Node<CanvasNodeData> | undefined;
   setNodes: (nodes: Node<CanvasNodeData>[]) => void;
   setEdges: (edges: Edge[]) => void;
+  setActiveNodeId: (nodeId: string | null) => void;
+  setCamera: (camera: CanvasCamera | null) => void;
   upsertNode: (node: Node<CanvasNodeData>) => void;
   patchNodeData: (id: string, patch: Partial<CanvasNodeData>) => void;
   setNodeMessages: (id: string, messages: Message[]) => void;
@@ -40,6 +45,14 @@ export type CanvasState = {
       position?: { x: number; y: number };
     },
   ) => string | null;
+  exportViewSnapshot: (options?: {
+    activeNodeId?: string | null;
+    camera?: CanvasCamera | null;
+  }) => CanvasViewSnapshot;
+  importViewSnapshot: (
+    snapshot: CanvasViewSnapshot,
+    options?: { applyCamera?: boolean; applyActiveNode?: boolean },
+  ) => void;
   onNodesChange: (changes: NodeChange[]) => void;
   onEdgesChange: (changes: EdgeChange[]) => void;
 };
@@ -66,9 +79,13 @@ export const createCanvasStore = (initial?: {
   createStore<CanvasState>((set, get) => ({
     nodesById: toNodeMap(initial?.nodes ?? []),
     edges: initial?.edges ?? [],
+    activeNodeId: null,
+    camera: null,
     getNode: (id) => get().nodesById[id],
     setNodes: (nodes) => set({ nodesById: toNodeMap(nodes) }),
     setEdges: (edges) => set({ edges }),
+    setActiveNodeId: (nodeId) => set({ activeNodeId: nodeId }),
+    setCamera: (camera) => set({ camera }),
     upsertNode: (node) =>
       set((state) => ({
         nodesById: {
@@ -194,6 +211,64 @@ export const createCanvasStore = (initial?: {
 
       return childId;
     },
+    exportViewSnapshot: (options) => {
+      const state = get();
+      const nodes = Object.values(state.nodesById);
+      const nodeViews = nodes.reduce<CanvasViewSnapshot["nodes"]>((acc, node) => {
+        acc[node.id] = {
+          id: node.id,
+          x: node.position.x,
+          y: node.position.y,
+          width: node.data?.width,
+          height: node.data?.height,
+        };
+        return acc;
+      }, {});
+
+      return {
+        version: 1,
+        savedAt: new Date().toISOString(),
+        activeNodeId: options?.activeNodeId ?? state.activeNodeId,
+        camera: options?.camera ?? state.camera,
+        nodes: nodeViews,
+      };
+    },
+    importViewSnapshot: (snapshot, options) =>
+      set((state) => {
+        const nextNodesById = { ...state.nodesById };
+
+        Object.entries(snapshot.nodes).forEach(([id, savedNode]) => {
+          const existing = nextNodesById[id];
+          if (!existing) return;
+
+          nextNodesById[id] = {
+            ...existing,
+            position: {
+              x: savedNode.x,
+              y: savedNode.y,
+            },
+            data: {
+              ...existing.data,
+              ...(typeof savedNode.width === "number"
+                ? { width: savedNode.width }
+                : {}),
+              ...(typeof savedNode.height === "number"
+                ? { height: savedNode.height }
+                : {}),
+            },
+          };
+        });
+
+        return {
+          nodesById: nextNodesById,
+          ...(options?.applyActiveNode === false
+            ? {}
+            : { activeNodeId: snapshot.activeNodeId ?? null }),
+          ...(options?.applyCamera === false
+            ? {}
+            : { camera: snapshot.camera ?? null }),
+        };
+      }),
     onNodesChange: (changes) =>
       set((state) => {
         if (!changes.length) return state;

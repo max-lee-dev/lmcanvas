@@ -48,6 +48,26 @@ branchNode(parentId);
 <LMCanvas store={store} focusNodeId={"node-id"} />
 ```
 
+## Bootstrap from linear messages
+
+```ts
+import { buildLinearGraphFromMessages, createCanvasStore } from "lmcanvas";
+
+const graph = buildLinearGraphFromMessages(messages);
+const store = createCanvasStore({ nodes: graph.nodes, edges: graph.edges });
+```
+
+## Persist view metadata
+
+```ts
+import { createLocalStoragePersistenceAdapter } from "lmcanvas";
+
+const persist = createLocalStoragePersistenceAdapter();
+persist.save("chat-123", store.getState().exportViewSnapshot());
+const snapshot = persist.load("chat-123");
+if (snapshot) store.getState().importViewSnapshot(snapshot);
+```
+
 ## Message parts helpers (AI SDK compatible)
 
 ```ts
@@ -60,4 +80,4 @@ import { getMessageText, getMessageImages, getMessageToolCalls } from "lmcanvas"
 
 - Use an external store (`createCanvasStore`) to keep canvas state across unmount/remount.
 - Avoid nesting ReactFlow inside ReactFlow. Mount LMCanvas in an overlay/sibling container.
-
+- Persist local view metadata only (`x/y/size/camera/active node`), not full chat history.
